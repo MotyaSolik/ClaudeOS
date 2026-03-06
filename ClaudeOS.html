@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClaudeOS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e3a5f;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --taskbar: #080c16;
+    --window-header: #0f1929;
+    --shadow: 0 25px 60px rgba(0,0,0,0.8);
+    --glow: 0 0 20px rgba(0,212,255,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* DESKTOP */
+  #desktop {
+    width: 100%;
+    height: calc(100vh - 48px);
+    position: relative;
+    background: 
+      radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 80%, rgba(16,185,129,0.03) 0%, transparent 50%),
+      #0a0e1a;
+  }
+
+  /* GRID BACKGROUND */
+  #desktop::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* DESKTOP ICONS */
+  .desktop-icon {
+    position: absolute;
+    width: 72px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .desktop-icon:hover { background: rgba(0,212,255,0.08); }
+  .desktop-icon:active { background: rgba(0,212,255,0.15); }
+  .desktop-icon .icon-img {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .desktop-icon span {
+    font-size: 11px;
+    color: var(--text);
+    text-align: center;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    line-height: 1.3;
+  }
+
+  /* WINDOWS */
+  .window {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow), var(--glow);
+    min-width: 300px;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+    animation: windowOpen 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .window.active {
+    box-shadow: var(--shadow), 0 0 30px rgba(0,212,255,0.2);
+    border-color: rgba(0,212,255,0.3);
+  }
+  @keyframes windowOpen {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .window-header {
+    background: var(--window-header);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: grab;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .window-header:active { cursor: grabbing; }
+  .window-controls { display: flex; gap: 6px; }
+  .window-btn {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: filter 0.15s;
+    border: none;
+    outline: none;
+  }
+  .window-btn:hover { filter: brightness(1.3); }
+  .btn-close { background: #ff5f57; }
+  .btn-min { background: #febc2e; }
+  .btn-max { background: #28c840; }
+  .window-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    flex: 1;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .window-body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* RESIZE HANDLE */
+  .resize-handle {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    opacity: 0.4;
+  }
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    bottom: 3px; right: 3px;
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+    border-radius: 1px;
+  }
+
+  /* TASKBAR */
+  #taskbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 48px;
+    background: rgba(8,12,22,0.92);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 4px;
+    z-index: 9999;
+  }
+
+  #clock {
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    padding: 4px 12px;
+    background: rgba(0,212,255,0.06);
+    border-radius: 6px;
+    border: 1px solid rgba(0,212,255,0.1);
+    white-space: nowrap;
+  }
+
+  .taskbar-btn {
+    height: 34px;
+    padding: 0 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .taskbar-btn:hover {
+    background: rgba(0,212,255,0.08);
+    border-color: rgba(0,212,255,0.15);
+    color: var(--text);
+  }
+  .taskbar-btn.active {
+    background: rgba(0,212,255,0.12);
+    border-color: rgba(0,212,255,0.25);
+    color: var(--accent);
+  }
+  .taskbar-btn .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  #start-btn {
+    width: 36px; height: 34px;
+    padding: 0;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(124,58,237,0.15));
+    border-color: rgba(0,212,255,0.2);
+    color: var(--accent);
+    font-size: 16px;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+
+  /* START MENU */
+  #start-menu {
+    position: fixed;
+    bottom: 56px;
+    left: 12px;
+    width: 280px;
+    background: rgba(17,24,39,0.97);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    z-index: 9998;
+    overflow: hidden;
+    display: none;
+    animation: menuOpen 0.15s ease-out;
+  }
+  @keyframes menuOpen {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  #start-menu.open { display: block; }
+  .start-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .start-logo {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .start-name { font-size: 14px; font-weight: 600; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
+  .start-sub { font-size: 10px; color: var(--text-dim); }
+  .start-apps { padding: 8px; }
+  .start-app {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .start-app:hover { background: rgba(0,212,255,0.08); }
+  .start-app .app-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .start-app .app-info .app-name { font-size: 13px; font-weight: 500; }
+  .start-app .app-info .app-desc { font-size: 11px; color: var(--text-dim); }
+
+  /* NOTIFICATION */
+  #notifications {
+    position: fixed;
+    top: 16px; right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 99999;
+    pointer-events: none;
+  }
+  .notification {
+    background: rgba(17,24,39,0.95);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 12px 16px;
+    min-width: 220px;
+    max-width: 300px;
+    animation: notifIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    backdrop-filter: blur(20px);
+  }
+  .notification.success { border-left-color: var(--accent3); }
+  .notification.warning { border-left-color: #f59e0b; }
+  @keyframes notifIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes notifOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(120%); opacity: 0; }
+  }
+  .notif-title { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 2px; }
+  .notif-body { font-size: 11px; color: var(--text-dim); }
+
+  /* === APP STYLES === */
+
+  /* TERMINAL */
+  .terminal-body {
+    background: #050a12;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 14px;
+    height: 100%;
+    overflow-y: auto;
+    color: #a8d8a8;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .terminal-line { line-height: 1.6; }
+  .terminal-line.cmd { color: var(--accent); }
+  .terminal-line.err { color: #f87171; }
+  .terminal-line.info { color: #94a3b8; }
+  .terminal-line.success { color: var(--accent3); }
+  .terminal-input-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .prompt { color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .terminal-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #a8d8a8;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    caret-color: var(--accent);
+  }
+
+  /* BROWSER */
+  .browser-toolbar {
+    background: var(--surface2);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .browser-nav { display: flex; gap: 4px; }
+  .browser-nav-btn {
+    width: 28px; height: 28px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    transition: all 0.1s;
+  }
+  .browser-nav-btn:hover { background: rgba(0,212,255,0.08); color: var(--text); }
+  .browser-url {
+    flex: 1;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .browser-url:focus { border-color: rgba(0,212,255,0.4); }
+  .browser-content {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .browser-home {
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+  }
+  .browser-logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 32px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 24px;
+  }
+  .search-box {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    text-align: center;
+    font-family: 'IBM Plex Sans', sans-serif;
+    transition: border-color 0.15s;
+  }
+  .search-box:focus { border-color: rgba(0,212,255,0.4); }
+  .browser-links {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 10px;
+    margin-top: 24px;
+    width: 100%;
+  }
+  .browser-link {
+    padding: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .browser-link:hover {
+    background: rgba(0,212,255,0.06);
+    border-color: rgba(0,212,255,0.2);
+  }
+  .browser-link .bl-icon { font-size: 20px; margin-bottom: 4px; }
+  .browser-link .bl-name { font-size: 11px; color: var(--text-dim); }
+
+  /* NOTEPAD */
+  .notepad-toolbar {
+    background: var(--surface2);
+    padding: 6px 10px;
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .toolbar-btn {
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .toolbar-btn:hover { background: rgba(0,212,255,0.08); color: var(--text); border-color: rgba(0,212,255,0.2); }
+  .notepad-editor {
+    flex: 1;
+    background: #070d17;
+    border: none;
+    outline: none;
+    padding: 16px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    resize: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* FILE MANAGER */
+  .filemanager-body {
+    display: flex;
+    height: 100%;
+  }
+  .fm-sidebar {
+    width: 140px;
+    background: var(--surface2);
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .fm-sidebar-item {
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    transition: all 0.1s;
+  }
+  .fm-sidebar-item:hover, .fm-sidebar-item.active {
+    background: rgba(0,212,255,0.08);
+    color: var(--text);
+  }
+  .fm-main { flex: 1; padding: 16px; overflow-y: auto; }
+  .fm-path {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    padding: 5px 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+  }
+  .fm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 12px;
+  }
+  .fm-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.1s;
+    text-align: center;
+  }
+  .fm-item:hover { background: rgba(0,212,255,0.08); }
+  .fm-item .fm-icon { font-size: 28px; }
+  .fm-item .fm-name { font-size: 10px; color: var(--text); word-break: break-all; line-height: 1.3; }
+
+  /* CALCULATOR */
+  .calc-body {
+    padding: 16px;
+    background: #070d17;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .calc-display {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: right;
+  }
+  .calc-expr { font-size: 12px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; min-height: 18px; }
+  .calc-result { font-size: 28px; font-weight: 300; font-family: 'IBM Plex Mono', monospace; color: var(--accent); }
+  .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; }
+  .calc-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 15px;
+    font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer;
+    transition: all 0.1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .calc-btn:hover { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.2); }
+  .calc-btn:active { background: rgba(0,212,255,0.2); transform: scale(0.95); }
+  .calc-btn.op { color: var(--accent); }
+  .calc-btn.eq { background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(124,58,237,0.2)); color: var(--accent); border-color: rgba(0,212,255,0.3); }
+  .calc-btn.clear { color: #f87171; }
+
+  /* SETTINGS */
+  .settings-body {
+    display: flex;
+    height: 100%;
+  }
+  .settings-sidebar {
+    width: 160px;
+    background: var(--surface2);
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .settings-nav-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    transition: all 0.1s;
+  }
+  .settings-nav-item:hover, .settings-nav-item.active {
+    background: rgba(0,212,255,0.08);
+    color: var(--text);
+  }
+  .settings-main { flex: 1; padding: 20px; overflow-y: auto; }
+  .settings-section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--accent); }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .setting-label { font-size: 13px; }
+  .setting-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .toggle {
+    width: 40px; height: 22px;
+    background: var(--border);
+    border-radius: 11px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: white;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle.on::after { left: 21px; }
+
+  /* SYSTEM MONITOR */
+  .sysmon-body {
+    padding: 16px;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .sysmon-card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .sysmon-card-title {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .sysmon-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .sysmon-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .sysmon-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .bar-cpu { background: linear-gradient(90deg, var(--accent), #7c3aed); }
+  .bar-ram { background: linear-gradient(90deg, var(--accent3), #06b6d4); }
+  .bar-disk { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+  .process-list { display: flex; flex-direction: column; gap: 6px; }
+  .process-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .process-name { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+  .process-cpu { color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
+
+  .context-menu {
+    position: fixed;
+    background: rgba(17,24,39,0.97);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 99998;
+    box-shadow: var(--shadow);
+    min-width: 160px;
+    display: none;
+    animation: menuOpen 0.1s ease-out;
+  }
+  .context-menu.open { display: block; }
+  .ctx-item {
+    padding: 7px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    transition: background 0.1s;
+  }
+  .ctx-item:hover { background: rgba(0,212,255,0.08); color: var(--accent); }
+  .ctx-separator { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,212,255,0.3); }
+
+  .wallpaper-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .wallpaper-opt {
+    aspect-ratio: 16/9;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .wallpaper-opt:hover, .wallpaper-opt.active { border-color: var(--accent); }
+  .wp-1 { background: linear-gradient(135deg, #0a0e1a, #1a2235); }
+  .wp-2 { background: linear-gradient(135deg, #0d1b0d, #1a3520); }
+  .wp-3 { background: linear-gradient(135deg, #1a0d2e, #2d1b69); }
+  .wp-4 { background: linear-gradient(135deg, #1a0000, #3d0000); }
+  .wp-5 { background: linear-gradient(135deg, #001a2e, #003d5c); }
+  .wp-6 { background: linear-gradient(135deg, #1a1a00, #3d3d00); }
+
+  #boot-screen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+    gap: 20px;
+  }
+  .boot-logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 48px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: bootPulse 1s ease-in-out;
+  }
+  @keyframes bootPulse {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .boot-subtitle { font-size: 14px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+  .boot-progress {
+    width: 200px;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .boot-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    animation: bootLoad 2s ease-out forwards;
+  }
+  @keyframes bootLoad {
+    from { width: 0; }
+    to { width: 100%; }
+  }
+  .boot-status { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent3); }
+</style>
+</head>
+<body>
+
+<!-- BOOT SCREEN -->
+<div id="boot-screen">
+  <div class="boot-logo">ClaudeOS</div>
+  <div class="boot-subtitle">Version 1.0.0 LTS</div>
+  <div class="boot-progress"><div class="boot-progress-bar"></div></div>
+  <div class="boot-status" id="boot-status">Initializing kernel...</div>
+</div>
+
+<!-- DESKTOP -->
+<div id="desktop" oncontextmenu="showContextMenu(event)">
+  <div class="desktop-icon" style="left:20px;top:20px" ondblclick="openApp('browser')">
+    <div class="icon-img" style="background:linear-gradient(135deg,#1565c0,#0d47a1)">🌐</div>
+    <span>Браузер</span>
+  </div>
+  <div class="desktop-icon" style="left:20px;top:120px" ondblclick="openApp('terminal')">
+    <div class="icon-img" style="background:linear-gradient(135deg,#1b5e20,#0a3d11)">⌨️</div>
+    <span>Терминал</span>
+  </div>
+  <div class="desktop-icon" style="left:20px;top:220px" ondblclick="openApp('notepad')">
+    <div class="icon-img" style="background:linear-gradient(135deg,#e65100,#bf360c)">📝</div>
+    <span>Блокнот</span>
+  </div>
+  <div class="desktop-icon" style="left:20px;top:320px" ondblclick="openApp('files')">
+    <div class="icon-img" style="background:linear-gradient(135deg,#f57f17,#e65100)">📁</div>
+    <span>Файлы</span>
+  </div>
+  <div class="desktop-icon" style="left:20px;top:420px" ondblclick="openApp('calc')">
+    <div class="icon-img" style="background:linear-gradient(135deg,#4527a0,#311b92)">🧮</div>
+    <span>Калькул.</span>
+  </div>
+  <div class="desktop-icon" style="left:20px;top:520px" ondblclick="openApp('sysmon')">
+    <div class="icon-img" style="background:linear-gradient(135deg,#00695c,#004d40)">📊</div>
+    <span>Монитор</span>
+  </div>
+</div>
+
+<!-- TASKBAR -->
+<div id="taskbar">
+  <button class="taskbar-btn" id="start-btn" onclick="toggleStartMenu()">⬡</button>
+  <div id="taskbar-apps"></div>
+  <div id="clock">00:00:00</div>
+</div>
+
+<!-- START MENU -->
+<div id="start-menu">
+  <div class="start-header">
+    <div class="start-logo">⬡</div>
+    <div>
+      <div class="start-name">ClaudeOS</div>
+      <div class="start-sub">Добро пожаловать</div>
+    </div>
+  </div>
+  <div class="start-apps">
+    <div class="start-app" onclick="openApp('browser');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#1565c0,#0d47a1)">🌐</div>
+      <div class="app-info"><div class="app-name">Браузер</div><div class="app-desc">Обзор сайтов</div></div>
+    </div>
+    <div class="start-app" onclick="openApp('terminal');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#1b5e20,#0a3d11)">⌨️</div>
+      <div class="app-info"><div class="app-name">Терминал</div><div class="app-desc">Командная строка</div></div>
+    </div>
+    <div class="start-app" onclick="openApp('notepad');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#e65100,#bf360c)">📝</div>
+      <div class="app-info"><div class="app-name">Блокнот</div><div class="app-desc">Текстовый редактор</div></div>
+    </div>
+    <div class="start-app" onclick="openApp('files');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#f57f17,#e65100)">📁</div>
+      <div class="app-info"><div class="app-name">Файлы</div><div class="app-desc">Менеджер файлов</div></div>
+    </div>
+    <div class="start-app" onclick="openApp('calc');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#4527a0,#311b92)">🧮</div>
+      <div class="app-info"><div class="app-name">Калькулятор</div><div class="app-desc">Вычисления</div></div>
+    </div>
+    <div class="start-app" onclick="openApp('sysmon');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#00695c,#004d40)">📊</div>
+      <div class="app-info"><div class="app-name">Монитор системы</div><div class="app-desc">Ресурсы</div></div>
+    </div>
+    <div class="start-app" onclick="openApp('settings');closeStartMenu()">
+      <div class="app-icon" style="background:linear-gradient(135deg,#424242,#212121)">⚙️</div>
+      <div class="app-info"><div class="app-name">Настройки</div><div class="app-desc">Параметры системы</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="context-menu" class="context-menu">
+  <div class="ctx-item" onclick="showNotif('Функция в разработке','Скоро будет доступно 😊','')">⟳ Обновить рабочий стол</div>
+  <div class="ctx-separator"></div>
+  <div class="ctx-item" onclick="openApp('settings');closeCtx()">⚙ Настройки дисплея</div>
+  <div class="ctx-item" onclick="openApp('terminal');closeCtx()">⌨ Открыть терминал</div>
+  <div class="ctx-item" onclick="openApp('notepad');closeCtx()">📝 Новый документ</div>
+</div>
+
+<div id="notifications"></div>
+
+<script>
+const windows = {};
+let zCounter = 100;
+let activeWin = null;
+
+// === BOOT SEQUENCE ===
+const bootMessages = [
+  'Загрузка ядра...',
+  'Инициализация файловой системы...',
+  'Запуск служб...',
+  'Загрузка пользовательского интерфейса...',
+  'Готово!'
+];
+let bi = 0;
+const bootInterval = setInterval(() => {
+  document.getElementById('boot-status').textContent = bootMessages[bi++] || '';
+  if (bi >= bootMessages.length) {
+    clearInterval(bootInterval);
+    setTimeout(() => {
+      const bs = document.getElementById('boot-screen');
+      bs.style.transition = 'opacity 0.6s';
+      bs.style.opacity = '0';
+      setTimeout(() => {
+        bs.remove();
+        showNotif('ClaudeOS', 'Система готова к работе!', 'success');
+      }, 600);
+    }, 400);
+  }
+}, 380);
+
+// === CLOCK ===
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// === NOTIFICATIONS ===
+function showNotif(title, body, type='') {
+  const c = document.getElementById('notifications');
+  const n = document.createElement('div');
+  n.className = `notification ${type}`;
+  n.innerHTML = `<div class="notif-title">${title}</div><div class="notif-body">${body}</div>`;
+  c.appendChild(n);
+  setTimeout(() => {
+    n.style.animation = 'notifOut 0.3s ease-in forwards';
+    setTimeout(() => n.remove(), 300);
+  }, 3500);
+}
+
+// === WINDOW MANAGEMENT ===
+function createWindow(id, title, width, height, content) {
+  if (windows[id]) { focusWindow(id); return; }
+
+  const desktop = document.getElementById('desktop');
+  const dw = desktop.clientWidth;
+  const dh = desktop.clientHeight;
+  const left = Math.max(60, Math.random() * (dw - width - 80) + 40);
+  const top = Math.max(10, Math.random() * (dh - height - 60) + 20);
+
+  const win = document.createElement('div');
+  win.className = 'window active';
+  win.id = `win-${id}`;
+  win.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px;z-index:${++zCounter}`;
+  win.innerHTML = `
+    <div class="window-header" onmousedown="startDrag(event,'${id}')">
+      <div class="window-controls">
+        <button class="window-btn btn-close" onclick="closeWindow('${id}')"></button>
+        <button class="window-btn btn-min" onclick="minimizeWindow('${id}')"></button>
+        <button class="window-btn btn-max" onclick="maximizeWindow('${id}')"></button>
+      </div>
+      <div class="window-title">${title}</div>
+      <div style="width:52px"></div>
+    </div>
+    <div class="window-body">${content}</div>
+    <div class="resize-handle" onmousedown="startResize(event,'${id}')"></div>
+  `;
+  desktop.appendChild(win);
+  windows[id] = { el: win, minimized: false, maximized: false, left, top, width, height };
+  setActive(id);
+  updateTaskbar();
+
+  win.addEventListener('mousedown', () => focusWindow(id));
+}
+
+function closeWindow(id) {
+  const w = windows[id];
+  if (!w) return;
+  w.el.style.transition = 'transform 0.15s, opacity 0.15s';
+  w.el.style.transform = 'scale(0.9)';
+  w.el.style.opacity = '0';
+  setTimeout(() => { w.el.remove(); delete windows[id]; updateTaskbar(); }, 150);
+}
+
+function minimizeWindow(id) {
+  const w = windows[id];
+  if (!w) return;
+  w.el.style.display = 'none';
+  w.minimized = true;
+  updateTaskbar();
+}
+
+function maximizeWindow(id) {
+  const w = windows[id];
+  if (!w) return;
+  const desktop = document.getElementById('desktop');
+  if (!w.maximized) {
+    w.prevLeft = w.el.style.left; w.prevTop = w.el.style.top;
+    w.prevWidth = w.el.style.width; w.prevHeight = w.el.style.height;
+    w.el.style.left = '0'; w.el.style.top = '0';
+    w.el.style.width = desktop.clientWidth + 'px';
+    w.el.style.height = desktop.clientHeight + 'px';
+    w.el.style.transition = 'all 0.2s ease';
+    w.el.style.borderRadius = '0';
+    w.maximized = true;
+  } else {
+    w.el.style.left = w.prevLeft; w.el.style.top = w.prevTop;
+    w.el.style.width = w.prevWidth; w.el.style.height = w.prevHeight;
+    w.el.style.borderRadius = '12px';
+    w.maximized = false;
+  }
+  setTimeout(() => { if (w.el) w.el.style.transition = ''; }, 200);
+}
+
+function focusWindow(id) {
+  const w = windows[id];
+  if (!w) return;
+  if (w.minimized) { w.el.style.display = 'flex'; w.minimized = false; }
+  w.el.style.zIndex = ++zCounter;
+  setActive(id);
+  updateTaskbar();
+}
+
+function setActive(id) {
+  Object.values(windows).forEach(w => w.el.classList.remove('active'));
+  if (windows[id]) windows[id].el.classList.add('active');
+  activeWin = id;
+}
+
+function updateTaskbar() {
+  const cont = document.getElementById('taskbar-apps');
+  cont.innerHTML = '';
+  const appNames = { browser:'🌐 Браузер', terminal:'⌨️ Терминал', notepad:'📝 Блокнот', files:'📁 Файлы', calc:'🧮 Калькулятор', sysmon:'📊 Монитор', settings:'⚙️ Настройки' };
+  Object.keys(windows).forEach(id => {
+    const btn = document.createElement('button');
+    btn.className = 'taskbar-btn' + (activeWin===id && !windows[id].minimized ? ' active' : '');
+    btn.innerHTML = `<span class="dot"></span>${appNames[id] || id}`;
+    btn.onclick = () => {
+      if (windows[id].minimized || activeWin !== id) focusWindow(id);
+      else minimizeWindow(id);
+    };
+    cont.appendChild(btn);
+  });
+}
+
+// === DRAG ===
+let dragState = null;
+function startDrag(e, id) {
+  if (e.target.classList.contains('window-btn')) return;
+  const w = windows[id];
+  if (!w || w.maximized) return;
+  const rect = w.el.getBoundingClientRect();
+  dragState = { id, ox: e.clientX - rect.left, oy: e.clientY - rect.top };
+  focusWindow(id);
+}
+document.addEventListener('mousemove', e => {
+  if (!dragState) return;
+  const w = windows[dragState.id];
+  if (!w) return;
+  const desktop = document.getElementById('desktop');
+  const x = Math.max(0, Math.min(e.clientX - dragState.ox, desktop.clientWidth - w.el.offsetWidth));
+  const y = Math.max(0, Math.min(e.clientY - dragState.oy, desktop.clientHeight - w.el.offsetHeight));
+  w.el.style.left = x + 'px';
+  w.el.style.top = y + 'px';
+});
+document.addEventListener('mouseup', () => { dragState = null; resizeState = null; });
+
+// === RESIZE ===
+let resizeState = null;
+function startResize(e, id) {
+  e.stopPropagation();
+  const w = windows[id];
+  if (!w) return;
+  resizeState = { id, sx: e.clientX, sy: e.clientY, sw: w.el.offsetWidth, sh: w.el.offsetHeight };
+}
+document.addEventListener('mousemove', e => {
+  if (!resizeState) return;
+  const w = windows[resizeState.id];
+  if (!w) return;
+  const nw = Math.max(300, resizeState.sw + e.clientX - resizeState.sx);
+  const nh = Math.max(200, resizeState.sh + e.clientY - resizeState.sy);
+  w.el.style.width = nw + 'px';
+  w.el.style.height = nh + 'px';
+});
+
+// === APPS ===
+function openApp(id) {
+  const apps = {
+    browser: () => createWindow('browser', '🌐 Браузер', 700, 500, getBrowserContent()),
+    terminal: () => { createWindow('terminal', '⌨️ Терминал', 580, 400, getTerminalContent()); initTerminal(); },
+    notepad: () => createWindow('notepad', '📝 Блокнот', 560, 440, getNotepadContent()),
+    files: () => createWindow('files', '📁 Менеджер файлов', 580, 420, getFilesContent()),
+    calc: () => createWindow('calc', '🧮 Калькулятор', 300, 420, getCalcContent()),
+    sysmon: () => { createWindow('sysmon', '📊 Монитор системы', 480, 460, getSysmonContent()); initSysmon(); },
+    settings: () => createWindow('settings', '⚙️ Настройки', 560, 460, getSettingsContent()),
+  };
+  if (apps[id]) apps[id]();
+}
+
+// === BROWSER ===
+function getBrowserContent() {
+  return `<div style="display:flex;flex-direction:column;height:100%">
+    <div class="browser-toolbar">
+      <div class="browser-nav">
+        <button class="browser-nav-btn" title="Назад">◂</button>
+        <button class="browser-nav-btn" title="Вперёд">▸</button>
+        <button class="browser-nav-btn" title="Обновить" onclick="showNotif('Браузер','Страница обновлена','')">↺</button>
+      </div>
+      <input class="browser-url" value="claudeos://home" id="browser-url-input" onkeydown="browserNav(event)">
+      <button class="browser-nav-btn" onclick="browserSearch()">↵</button>
+    </div>
+    <div class="browser-content" id="browser-content">
+      <div class="browser-home">
+        <div class="browser-logo">ClaudeOS</div>
+        <input class="search-box" placeholder="Поиск или введите адрес..." id="browser-search" onkeydown="if(event.key==='Enter')browserGoSearch()">
+        <div class="browser-links">
+          <div class="browser-link" onclick="showNotif('Браузер','Переход на сайт...','')"><div class="bl-icon">📰</div><div class="bl-name">Новости</div></div>
+          <div class="browser-link" onclick="showNotif('Браузер','Переход на сайт...','')"><div class="bl-icon">🎬</div><div class="bl-name">Видео</div></div>
+          <div class="browser-link" onclick="showNotif('Браузер','Переход на сайт...','')"><div class="bl-icon">🎵</div><div class="bl-name">Музыка</div></div>
+          <div class="browser-link" onclick="showNotif('Браузер','Переход на сайт...','')"><div class="bl-icon">🛒</div><div class="bl-name">Магазин</div></div>
+          <div class="browser-link" onclick="showNotif('Браузер','Переход на сайт...','')"><div class="bl-icon">📧</div><div class="bl-name">Почта</div></div>
+          <div class="browser-link" onclick="showNotif('Браузер','Переход на сайт...','')"><div class="bl-icon">💬</div><div class="bl-name">Чат</div></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function browserNav(e) { if(e.key==='Enter') showNotif('Браузер','Переход: '+e.target.value,''); }
+function browserSearch() { showNotif('Браузер','Загрузка страницы...',''); }
+function browserGoSearch() { showNotif('Браузер','Поиск: '+document.getElementById('browser-search').value,''); }
+
+// === TERMINAL ===
+let termHistory = [];
+let termHistIdx = -1;
+function getTerminalContent() {
+  return `<div class="terminal-body" id="term-body">
+    <div class="terminal-line info">ClaudeOS Terminal v1.0 — Введите 'help' для справки</div>
+    <div class="terminal-line info">──────────────────────────────────────</div>
+    <div class="terminal-input-line">
+      <span class="prompt">user@claudeos:~$</span>
+      <input class="terminal-input" id="term-input" autofocus autocomplete="off" onkeydown="termKeydown(event)" placeholder="введите команду...">
+    </div>
+  </div>`;
+}
+function initTerminal() {
+  setTimeout(() => {
+    const inp = document.getElementById('term-input');
+    if (inp) { inp.focus(); inp.scrollIntoView(); }
+  }, 100);
+}
+const termCmds = {
+  help: () => ['<span style="color:#00d4ff">Доступные команды:</span>',
+    'help — справка', 'ls — список файлов', 'pwd — текущая директория',
+    'whoami — текущий пользователь', 'date — дата и время',
+    'echo [текст] — вывод текста', 'clear — очистить экран',
+    'uname — информация о системе', 'uptime — время работы',
+    'neofetch — информация о системе', 'matrix — режим матрицы'],
+  ls: () => ['<span style="color:#10b981">Documents/</span>  <span style="color:#10b981">Downloads/</span>  <span style="color:#10b981">Pictures/</span>  <span style="color:#10b981">Music/</span>',
+    'notes.txt  config.json  readme.md'],
+  pwd: () => ['/home/user'],
+  whoami: () => ['user'],
+  date: () => [new Date().toLocaleString('ru-RU')],
+  uname: () => ['ClaudeOS 1.0.0 LTS #1 SMP x86_64 GNU/Linux'],
+  uptime: () => ['up 0:' + String(Math.floor(Math.random()*59)).padStart(2,'0') + ', 1 user, load average: 0.12, 0.08, 0.03'],
+  neofetch: () => [
+    '<span style="color:#00d4ff">       ⬡⬡⬡</span>       <b>user@claudeos</b>',
+    '<span style="color:#00d4ff">      ⬡⬡⬡⬡⬡</span>      ──────────────────',
+    '<span style="color:#00d4ff">     ⬡⬡⬡⬡⬡⬡⬡</span>     OS: ClaudeOS 1.0.0 LTS',
+    '<span style="color:#00d4ff">    ⬡ ClaudeOS ⬡</span>   Kernel: 6.1.0-claude',
+    '<span style="color:#00d4ff">     ⬡⬡⬡⬡⬡⬡⬡</span>     Shell: claudesh',
+    '<span style="color:#00d4ff">      ⬡⬡⬡⬡⬡</span>      Resolution: 1920x1080',
+    '<span style="color:#00d4ff">       ⬡⬡⬡</span>       CPU: AI Processor @ 4.2 GHz',
+    '                  RAM: 3.2 GB / 16 GB',
+  ],
+  matrix: () => { startMatrix(); return ['Запуск режима матрицы... (нажмите Esc для выхода)']; },
+};
+
+function termKeydown(e) {
+  const inp = e.target;
+  if (e.key === 'Enter') {
+    const cmd = inp.value.trim();
+    inp.value = '';
+    if (!cmd) return;
+    termHistory.unshift(cmd);
+    termHistIdx = -1;
+    execTermCmd(cmd);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (termHistIdx < termHistory.length-1) termHistIdx++;
+    inp.value = termHistory[termHistIdx] || '';
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (termHistIdx > 0) termHistIdx--;
+    else { termHistIdx = -1; inp.value = ''; return; }
+    inp.value = termHistory[termHistIdx] || '';
+  }
+}
+
+function execTermCmd(cmd) {
+  const body = document.getElementById('term-body');
+  if (!body) return;
+  const cmdLine = document.createElement('div');
+  cmdLine.className = 'terminal-line cmd';
+  cmdLine.textContent = 'user@claudeos:~$ ' + cmd;
+  body.insertBefore(cmdLine, body.lastElementChild);
+
+  const parts = cmd.toLowerCase().trim().split(' ');
+  const base = parts[0];
+  let output = [];
+
+  if (base === 'clear') {
+    body.querySelectorAll('.terminal-line').forEach(l => l.remove());
+    return;
+  } else if (base === 'echo') {
+    output = [parts.slice(1).join(' ')];
+  } else if (termCmds[base]) {
+    output = termCmds[base]();
+  } else {
+    output = [`<span style="color:#f87171">claudesh: команда не найдена: ${cmd}</span>`, 'Введите <span style="color:#00d4ff">help</span> для списка команд'];
+  }
+
+  output.forEach(line => {
+    const el = document.createElement('div');
+    el.className = 'terminal-line';
+    el.innerHTML = line;
+    body.insertBefore(el, body.lastElementChild);
+  });
+  body.lastElementChild.scrollIntoView();
+}
+
+function startMatrix() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:999990;overflow:hidden;cursor:pointer;';
+  overlay.innerHTML = '<canvas id="matrix-canvas" style="display:block;width:100%;height:100%"></canvas><div style="position:absolute;bottom:20px;right:20px;color:#00ff41;font-family:monospace;font-size:12px;opacity:0.6">ESC — выход</div>';
+  document.body.appendChild(overlay);
+  const canvas = overlay.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const cols = Math.floor(canvas.width/14);
+  const drops = Array(cols).fill(1);
+  const chars = 'アイウエオカキクケコサシスセソタチツテト0123456789ABCDEF';
+  const interval = setInterval(() => {
+    ctx.fillStyle='rgba(0,0,0,0.05)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#00ff41'; ctx.font='14px monospace';
+    drops.forEach((y,i) => {
+      ctx.fillText(chars[Math.floor(Math.random()*chars.length)], i*14, y*14);
+      if(y*14>canvas.height && Math.random()>0.975) drops[i]=0;
+      drops[i]++;
+    });
+  }, 35);
+  const close = () => { clearInterval(interval); overlay.remove(); };
+  overlay.onclick = close;
+  document.addEventListener('keydown', e => { if(e.key==='Escape') close(); }, {once:true});
+}
+
+// === NOTEPAD ===
+function getNotepadContent() {
+  return `<div style="display:flex;flex-direction:column;height:100%">
+    <div class="notepad-toolbar">
+      <button class="toolbar-btn" onclick="notepadNew()">Новый</button>
+      <button class="toolbar-btn" onclick="showNotif('Блокнот','Файл сохранён','success')">Сохранить</button>
+      <button class="toolbar-btn" onclick="notepadCopy()">Копировать всё</button>
+      <button class="toolbar-btn" onclick="notepadClear()">Очистить</button>
+      <button class="toolbar-btn" onclick="notepadCount()">Статистика</button>
+    </div>
+    <textarea class="notepad-editor" id="notepad-editor" spellcheck="false" placeholder="Начните писать...
+
+ClaudeOS Блокнот готов к работе.
+Поддерживает Unicode, Markdown и свободный текст."></textarea>
+  </div>`;
+}
+function notepadNew() { if(confirm('Создать новый файл? Несохранённые данные будут потеряны.')) document.getElementById('notepad-editor').value=''; }
+function notepadCopy() { const t=document.getElementById('notepad-editor'); t.select(); document.execCommand('copy'); showNotif('Блокнот','Текст скопирован','success'); }
+function notepadClear() { document.getElementById('notepad-editor').value=''; }
+function notepadCount() { const t=document.getElementById('notepad-editor').value; showNotif('Статистика',`Символов: ${t.length} | Слов: ${t.split(/\s+/).filter(Boolean).length} | Строк: ${t.split('\n').length}`,''); }
+
+// === FILES ===
+const fsData = {
+  '~': ['📁 Documents', '📁 Downloads', '📁 Pictures', '📁 Music', '📄 readme.md', '⚙️ config.json'],
+  'Documents': ['📄 notes.txt', '📄 report.docx', '📄 presentation.pptx', '📁 Projects'],
+  'Downloads': ['📦 package.tar.gz', '🖼️ photo.jpg', '🎵 song.mp3'],
+  'Pictures': ['🖼️ wallpaper.png', '🖼️ screenshot.png', '📁 2024'],
+  'Music': ['🎵 track01.mp3', '🎵 track02.mp3', '🎵 mix.wav'],
+  'Projects': ['📁 claudeos', '📁 webdev', '📄 todo.txt'],
+};
+let currentDir = '~';
+
+function getFilesContent() {
+  return `<div class="filemanager-body">
+    <div class="fm-sidebar">
+      <div class="fm-sidebar-item active" onclick="fmNav('~',this)">🏠 Домой</div>
+      <div class="fm-sidebar-item" onclick="fmNav('Documents',this)">📁 Документы</div>
+      <div class="fm-sidebar-item" onclick="fmNav('Downloads',this)">📥 Загрузки</div>
+      <div class="fm-sidebar-item" onclick="fmNav('Pictures',this)">🖼️ Картинки</div>
+      <div class="fm-sidebar-item" onclick="fmNav('Music',this)">🎵 Музыка</div>
+    </div>
+    <div class="fm-main">
+      <div class="fm-path" id="fm-path">/home/user</div>
+      <div class="fm-grid" id="fm-grid"></div>
+    </div>
+  </div>`;
+}
+function fmNav(dir, el) {
+  currentDir = dir;
+  document.querySelectorAll('.fm-sidebar-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const path = document.getElementById('fm-path');
+  const grid = document.getElementById('fm-grid');
+  if (!path || !grid) return;
+  path.textContent = '/home/user/' + (dir==='~'?'':dir);
+  const items = fsData[dir] || [];
+  grid.innerHTML = items.map(item => {
+    const isDir = item.startsWith('📁');
+    const name = item.slice(2).trim();
+    return `<div class="fm-item" ${isDir?`onclick="fmOpenDir('${name}')"`:'onclick="showNotif(\'Файлы\',\'Открытие: '+name+'\',\'\')"'}>
+      <div class="fm-icon">${item.split(' ')[0]}</div>
+      <div class="fm-name">${name}</div>
+    </div>`;
+  }).join('');
+}
+function fmOpenDir(name) {
+  if (fsData[name]) { fmNav(name, null); }
+  else { showNotif('Файлы', 'Открытие: ' + name, ''); }
+}
+setTimeout(() => { if(document.getElementById('fm-grid')) fmNav('~', null); }, 100);
+
+// === CALCULATOR ===
+let calcExpr = '';
+let calcResult = '0';
+function getCalcContent() {
+  const btns = [
+    ['C','±','%','÷'],['7','8','9','×'],['4','5','6','−'],['1','2','3','+'],['0','.','⌫','=']
+  ];
+  const btnHtml = btns.map(row => row.map(b => {
+    let cls = 'calc-btn';
+    if(['÷','×','−','+'].includes(b)) cls += ' op';
+    if(b==='=') cls += ' eq';
+    if(b==='C') cls += ' clear';
+    return `<button class="${cls}" onclick="calcPress('${b}')">${b}</button>`;
+  }).join('')).join('');
+  return `<div class="calc-body">
+    <div class="calc-display">
+      <div class="calc-expr" id="calc-expr"></div>
+      <div class="calc-result" id="calc-result">0</div>
+    </div>
+    <div class="calc-grid">${btnHtml}</div>
+  </div>`;
+}
+function calcPress(b) {
+  const exprEl = document.getElementById('calc-expr');
+  const resEl = document.getElementById('calc-result');
+  if (!exprEl || !resEl) return;
+  if (b==='C') { calcExpr=''; resEl.textContent='0'; exprEl.textContent=''; }
+  else if (b==='=') {
+    try {
+      const expr = calcExpr.replace(/÷/g,'/').replace(/×/g,'*').replace(/−/g,'-');
+      const r = Function('"use strict";return ('+expr+')')();
+      exprEl.textContent = calcExpr + ' =';
+      calcResult = String(parseFloat(r.toFixed(10)));
+      resEl.textContent = calcResult;
+      calcExpr = calcResult;
+    } catch { resEl.textContent='Ошибка'; calcExpr=''; }
+  } else if (b==='⌫') { calcExpr=calcExpr.slice(0,-1); resEl.textContent=calcExpr||'0'; }
+  else if (b==='±') { if(calcExpr) { calcExpr=String(-parseFloat(calcExpr)); resEl.textContent=calcExpr; } }
+  else if (b==='%') { if(calcExpr) { calcExpr=String(parseFloat(calcExpr)/100); resEl.textContent=calcExpr; } }
+  else { calcExpr+=b; resEl.textContent=calcExpr; }
+  if(exprEl && b!=='=') exprEl.textContent=calcExpr;
+}
+
+// === SYSTEM MONITOR ===
+function getSysmonContent() {
+  return `<div class="sysmon-body">
+    <div class="sysmon-card">
+      <div class="sysmon-card-title">Процессор</div>
+      <div class="sysmon-bar-label"><span>CPU Usage</span><span id="cpu-val">--</span></div>
+      <div class="sysmon-bar"><div class="sysmon-bar-fill bar-cpu" id="cpu-bar" style="width:0%"></div></div>
+      <div class="sysmon-bar-label"><span>Core 0</span><span id="core0-val">--</span></div>
+      <div class="sysmon-bar"><div class="sysmon-bar-fill bar-cpu" id="core0-bar" style="width:0%;opacity:0.6"></div></div>
+    </div>
+    <div class="sysmon-card">
+      <div class="sysmon-card-title">Оперативная память</div>
+      <div class="sysmon-bar-label"><span>3.2 GB / 16 GB</span><span id="ram-val">--</span></div>
+      <div class="sysmon-bar"><div class="sysmon-bar-fill bar-ram" id="ram-bar" style="width:0%"></div></div>
+    </div>
+    <div class="sysmon-card">
+      <div class="sysmon-card-title">Диск</div>
+      <div class="sysmon-bar-label"><span>42 GB / 256 GB</span><span id="disk-val">16%</span></div>
+      <div class="sysmon-bar"><div class="sysmon-bar-fill bar-disk" id="disk-bar" style="width:16%"></div></div>
+    </div>
+    <div class="sysmon-card">
+      <div class="sysmon-card-title">Процессы</div>
+      <div class="process-list" id="proc-list"></div>
+    </div>
+  </div>`;
+}
+const fakeProcs = ['claudeOS-kernel','browser','terminal','window-manager','audio-daemon','network-mgr','file-indexer','security-daemon'];
+function initSysmon() {
+  updateSysmon();
+  const interval = setInterval(() => {
+    if (!document.getElementById('cpu-bar')) { clearInterval(interval); return; }
+    updateSysmon();
+  }, 1200);
+}
+function updateSysmon() {
+  const cpu = 5+Math.random()*40;
+  const core0 = 3+Math.random()*50;
+  const ram = 18+Math.random()*10;
+  setBar('cpu-bar','cpu-val',cpu);
+  setBar('core0-bar','core0-val',core0);
+  setBar('ram-bar','ram-val',ram);
+  const pl = document.getElementById('proc-list');
+  if (pl) {
+    pl.innerHTML = fakeProcs.map(p=>`<div class="process-item"><span class="process-name">${p}</span><span class="process-cpu">${(Math.random()*4).toFixed(1)}%</span></div>`).join('');
+  }
+}
+function setBar(barId, valId, pct) {
+  const b=document.getElementById(barId); const v=document.getElementById(valId);
+  if(b) b.style.width=pct.toFixed(0)+'%';
+  if(v) v.textContent=pct.toFixed(0)+'%';
+}
+
+// === SETTINGS ===
+function getSettingsContent() {
+  return `<div class="settings-body">
+    <div class="settings-sidebar">
+      <div class="settings-nav-item active" onclick="settingsTab('appearance',this)">🎨 Вид</div>
+      <div class="settings-nav-item" onclick="settingsTab('system',this)">💻 Система</div>
+      <div class="settings-nav-item" onclick="settingsTab('network',this)">🌐 Сеть</div>
+      <div class="settings-nav-item" onclick="settingsTab('about',this)">ℹ️ О системе</div>
+    </div>
+    <div class="settings-main" id="settings-main">
+      ${getAppearanceTab()}
+    </div>
+  </div>`;
+}
+function settingsTab(tab, el) {
+  document.querySelectorAll('.settings-nav-item').forEach(i=>i.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const main = document.getElementById('settings-main');
+  if(!main) return;
+  const tabs = {
+    appearance: getAppearanceTab,
+    system: getSystemTab,
+    network: getNetworkTab,
+    about: getAboutTab,
+  };
+  if(tabs[tab]) main.innerHTML = tabs[tab]();
+}
+function getAppearanceTab() {
+  return `<div class="settings-section-title">Внешний вид</div>
+    <div class="setting-row">
+      <div><div class="setting-label">Тема</div><div class="setting-sub">Тёмная тема активна</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Анимации</div><div class="setting-sub">Плавные переходы</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Прозрачность</div><div class="setting-sub">Размытие стекла</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div style="margin-top:20px;font-size:12px;color:var(--text-dim);margin-bottom:10px">Обои рабочего стола</div>
+    <div class="wallpaper-options">
+      <div class="wallpaper-opt wp-1 active" onclick="setWallpaper(0,this)"></div>
+      <div class="wallpaper-opt wp-2" onclick="setWallpaper(1,this)"></div>
+      <div class="wallpaper-opt wp-3" onclick="setWallpaper(2,this)"></div>
+      <div class="wallpaper-opt wp-4" onclick="setWallpaper(3,this)"></div>
+      <div class="wallpaper-opt wp-5" onclick="setWallpaper(4,this)"></div>
+      <div class="wallpaper-opt wp-6" onclick="setWallpaper(5,this)"></div>
+    </div>`;
+}
+const wallpapers = [
+  'radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.04) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.06) 0%, transparent 50%), #0a0e1a',
+  'radial-gradient(ellipse at 30% 60%, rgba(16,185,129,0.08) 0%, transparent 60%), #0a1a0a',
+  'radial-gradient(ellipse at 70% 30%, rgba(124,58,237,0.12) 0%, transparent 60%), #0d0a1a',
+  'radial-gradient(ellipse at 50% 50%, rgba(239,68,68,0.08) 0%, transparent 60%), #1a0a0a',
+  'radial-gradient(ellipse at 20% 80%, rgba(0,212,255,0.1) 0%, transparent 50%), #0a1220',
+  'radial-gradient(ellipse at 80% 20%, rgba(245,158,11,0.06) 0%, transparent 50%), #141200',
+];
+function setWallpaper(i, el) {
+  document.getElementById('desktop').style.background = wallpapers[i];
+  document.querySelectorAll('.wallpaper-opt').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  showNotif('Настройки','Обои изменены','success');
+}
+function getSystemTab() {
+  return `<div class="settings-section-title">Система</div>
+    <div class="setting-row"><div><div class="setting-label">Звук системы</div><div class="setting-sub">Звуковые уведомления</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="setting-row"><div><div class="setting-label">Уведомления</div><div class="setting-sub">Показывать всплывающие окна</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="setting-row"><div><div class="setting-label">Автосохранение</div><div class="setting-sub">Каждые 5 минут</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>`;
+}
+function getNetworkTab() {
+  return `<div class="settings-section-title">Сеть</div>
+    <div class="setting-row"><div><div class="setting-label">WiFi</div><div class="setting-sub">ClaudeNet — подключено</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="setting-row"><div><div class="setting-label">Bluetooth</div><div class="setting-sub">Поиск устройств...</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+    <div class="setting-row"><div><div class="setting-label">VPN</div><div class="setting-sub">Не подключено</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>`;
+}
+function getAboutTab() {
+  return `<div class="settings-section-title">О системе</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="padding:16px;background:rgba(0,0,0,0.3);border-radius:10px;border:1px solid var(--border)">
+        <div style="font-size:24px;font-weight:600;color:var(--accent);font-family:'IBM Plex Mono',monospace;margin-bottom:4px">ClaudeOS</div>
+        <div style="font-size:12px;color:var(--text-dim)">Версия 1.0.0 LTS (Build 2026.03)</div>
+      </div>
+      <div class="setting-row"><div class="setting-label">Ядро</div><div style="font-size:12px;color:var(--text-dim);font-family:monospace">6.1.0-claude-amd64</div></div>
+      <div class="setting-row"><div class="setting-label">Архитектура</div><div style="font-size:12px;color:var(--text-dim);font-family:monospace">x86_64</div></div>
+      <div class="setting-row"><div class="setting-label">Оболочка</div><div style="font-size:12px;color:var(--text-dim);font-family:monospace">claudesh 1.0</div></div>
+      <div class="setting-row"><div class="setting-label">Разработчик</div><div style="font-size:12px;color:var(--text-dim)">Anthropic & Claude</div></div>
+    </div>`;
+}
+
+// === CONTEXT MENU ===
+function showContextMenu(e) {
+  e.preventDefault();
+  const cm = document.getElementById('context-menu');
+  cm.style.left = e.clientX + 'px';
+  cm.style.top = e.clientY + 'px';
+  cm.classList.add('open');
+}
+function closeCtx() { document.getElementById('context-menu').classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('#context-menu')) closeCtx();
+  if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn')) closeStartMenu();
+});
+
+// === START MENU ===
+function toggleStartMenu() {
+  document.getElementById('start-menu').classList.toggle('open');
+}
+function closeStartMenu() {
+  document.getElementById('start-menu').classList.remove('open');
+}
+</script>
+</body>
+</html>
